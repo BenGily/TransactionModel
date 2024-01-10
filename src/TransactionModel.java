@@ -2,169 +2,213 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.io.IOException;
-import java.util.Map;
+import java.awt.event.KeyEvent;
+import java.util.Formatter;
 
 public class TransactionModel {
-    static Map<String, String[]> productData;
-
-    private final JTextField barcodeInput = new JTextField("");
+    private JFrame frame;
+    private JTextField barcodeInput;
+    private JTextArea virtualJournal;
     private JLabel poleDisplay;
-    JTextArea virtualJournal = new JTextArea();
-    private final JButton nextDollar = new JButton("Next Dollar");
-    private final JButton voidTransaction = new JButton("Void Transaction");
+    private JButton nextDollarButton;
+    private JButton payForTicketButton;
+    private JButton voidTransactionButton;
+    private JButton voidLastItemButton;
+    private Formatter formatter = new Formatter();
+
+    private PriceBook priceBook;
+    private Register register;
+    private Scanner scanner;
+
 
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(TransactionModel::new);
-
-        loadProductData();
-        System.out.println("I");
-        for (String name: productData.keySet()) {
-            String key = name.toString();
-            String value = productData.get(name).toString();
-
-            System.out.println(key + " " + value);
-
-        }
-        System.out.println("I");
-    }
-
-    private static HashMap<String, String> readFromTSV(String filename) throws IOException {
-        HashMap<String, String> items = null;
-        BufferedReader br;
-        String line;
-        try {
-            items = new HashMap<String, String>();
-            br = new BufferedReader(new FileReader("Tsv.tsv"));
-            line = null;
-
-            while ((line = br.readLine()) != null) {
-                String[] str = line.split("\t");
-                for (int i = 1; i < str.length; i++) {
-                    String[] arr = str[i].split(":");
-                    items.put(arr[0], arr[1]);
-                }
-            }
-            return items;
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return items;
     }
 
     public TransactionModel() {
-            loadProductData();
-            // readFromTSV("pricebook.tsv");
+
+            priceBook = new PriceBook("pricebook.tsv");
+            register = new Register(priceBook);
+            scanner = new Scanner(register);
+            setupGlobalKeyListener();
             initializeUI();
+
+            register.printLiveReceipt();
 
     }
 
-    private static void loadProductData() {
-        productData = new HashMap<>();
-
-        try (BufferedReader br = new BufferedReader(new FileReader("Tsv.tsv"))) {
-            String line;
-            br.readLine();
-            while ((line = br.readLine()) != null) {
-                String[] values = line.split("\t");
-                productData.put(values[0], new String[]{values[1], values[2]});
+    private void setupGlobalKeyListener() {
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new KeyEventDispatcher() {
+            @Override
+            public boolean dispatchKeyEvent(KeyEvent e) {
+                if (!barcodeInput.isFocusOwner()) {
+                    if (e.getID () == KeyEvent.KEY_TYPED && e.getKeyChar() != '\n') {
+                        barcodeInput.setText(barcodeInput.getText() + e.getKeyChar());
+                    } else if (e.getID() == KeyEvent.KEY_RELEASED && e.getKeyCode() == KeyEvent.VK_ENTER) {
+                        processBarcodeInput();
+                        return true;
+                    }
+                }
+                return false;
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        });
+    }
+
+    private void processBarcodeInput() {
+        String barcode = barcodeInput.getText().trim();
+        scanner.scan(barcode);
+        updateVirtualJournal();
+        barcodeInput.setText("");
     }
 
     private void initializeUI() {
         JFrame frame = new JFrame("Gas Station Transaction Model");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
-        frame.setPreferredSize(new Dimension(800, 600));
-        frame.setMinimumSize(new Dimension(800, 600));
+        frame.setPreferredSize(new Dimension(1000, 600));
+        frame.setMinimumSize(new Dimension(1000, 600));
 
-        frame.add(createBarcodeScannerPanel(), BorderLayout.NORTH);
-        frame.add(createVirtualJournalPanel(), BorderLayout.CENTER);
-        frame.add(createPoleDisplayPanel(), BorderLayout.SOUTH);
+
+        barcodeInput = createBarcodeScannerPanel();
+        frame.add(barcodeInput, BorderLayout.NORTH);
+
+        virtualJournal = createVirtualJournalPanel();
+        frame.add(new JScrollPane(virtualJournal), BorderLayout.CENTER);
+
+        poleDisplay = createPoleDisplayPanel();
+        frame.add(poleDisplay, BorderLayout.SOUTH);
+
         frame.add(createActionButtonsPanel(), BorderLayout.EAST);
         frame.add(createQuickKeysPanel(), BorderLayout.WEST);
 
         frame.pack();
         frame.setVisible(true);
 
+    }
+
+    private JTextField createBarcodeScannerPanel() {
+        JTextField barcodeInput = new JTextField();
         barcodeInput.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                String barcode = barcodeInput.getText();
-                String[] productInfo = productData.get(barcode);
-                if (productInfo != null) {
-                    poleDisplay.setText("Name: " + productInfo[0] + ", Cost: " + productInfo[1]);
-                } else {
-                    poleDisplay.setText("Product not found");
-                }
-            }
-
-        });
-
-        voidTransaction.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                virtualJournal.setText(" ");
+                processBarcodeInput();
             }
         });
-
-        nextDollar.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-            }
-        });
+        return barcodeInput;
     }
 
-    private JPanel createBarcodeScannerPanel() {
-        JPanel barcodePanel = new JPanel(new BorderLayout());
-        JTextField barcodeInput = new JTextField();
-        barcodePanel.add(barcodeInput, BorderLayout.CENTER);
-        return barcodePanel;
-    }
-
-    private JScrollPane createVirtualJournalPanel() {
-        // JTextArea virtualJournal = new JTextArea();
-        return new JScrollPane(virtualJournal);
+    private JTextArea createVirtualJournalPanel() {
+        return new JTextArea();
     }
 
     private JLabel createPoleDisplayPanel() {
-        return new JLabel("Item Name and Cost");
+        return new JLabel("Subtotal and Quantity will Display Here as Items are Scanned");
     }
 
     private JPanel createQuickKeysPanel() {
         JPanel quickKeysPanel = new JPanel(new GridLayout(3, 3));
+        JButton quickKey1  = new JButton("Red Bull SF 12Z");
+        JButton quickKey2  = new JButton("Gatorade Fruit Punch");
+        JButton quickKey3  = new JButton("Donut");
 
-        quickKeysPanel.add(new JButton("Item 1"));
-        quickKeysPanel.add(new JButton("Item 2"));
+        quickKey1.addActionListener(e -> quickKey1Select());
+        quickKey2.addActionListener(e -> quickKey2Select());
+        quickKey3.addActionListener(e -> quickKey3Select());
+
+        quickKeysPanel.add(quickKey1);
+        quickKeysPanel.add(quickKey2);
+        quickKeysPanel.add(quickKey3);
 
         return quickKeysPanel;
     }
 
     private JPanel createActionButtonsPanel() {
-        JPanel actionButtonsPanel = new JPanel(new GridLayout(1, 2));
+        JPanel actionButtonsPanel = new JPanel(new GridLayout(1, 4));
 
-        actionButtonsPanel.add(nextDollar);
-        actionButtonsPanel.add(voidTransaction);
+        nextDollarButton = new JButton("Next Dollar");
+        voidLastItemButton = new JButton("Void Last Item");
+        voidTransactionButton = new JButton("Void Transaction");
+        payForTicketButton = new JButton("Pay");
+
+        payForTicketButton.addActionListener(e -> payForTicket());
+        nextDollarButton.addActionListener(e -> nextDollar());
+        voidLastItemButton.addActionListener(e -> voidLastItem());
+        voidTransactionButton.addActionListener(e -> voidTransaction());
+
+        actionButtonsPanel.add(payForTicketButton);
+        actionButtonsPanel.add(nextDollarButton);
+        actionButtonsPanel.add(voidLastItemButton);
+        actionButtonsPanel.add(voidTransactionButton);
 
         return actionButtonsPanel;
     }
 
+    private void updateVirtualJournal() {
+        virtualJournal.setText("");
+        for (String[] item : register.getScannedItems()) {
+            virtualJournal.append(String.join(" ", item) + "\n");
+            if (voidTransactionButton.getModel().isPressed()) {
+                virtualJournal.append("Transaction Voided");
+            }
+        }
+        poleDisplay.setText("Subtotal: " + String.format("%.2f", register.getSubtotal()) +
+                "\n" + "Basket Qty: " + register.getQuantity());
 
-    private static PriceBook createPriceBook(String[] data) {
-        String code = data[0];
-        String name = data[1];
-        float price = Float.parseFloat(data[2]);
+        if (register.getTotal() > 0) {
+            poleDisplay.setText("Total: " + String.format("%.2f", register.getTotal()) +
+                    "\n" + "Basket Qty: " + register.getQuantity());
+        }
 
-        return new PriceBook(name, code, price);
+    }
+
+    private void voidLastItem() {
+        register.voidLastItem();
+        virtualJournal.append("Item Voided");
+        updateVirtualJournal();
+    }
+
+    private void voidTransaction() {
+        register.voidTransaction();
+        updateVirtualJournal();
+        virtualJournal.append("Transaction Voided\n");
+        System.out.println("Transaction Voided");
+    }
+
+    private void nextDollar() {
+        register.nextDollar(register.getTotal());
+        updateVirtualJournal();
+        System.out.println(register.getNextDollar());
+        virtualJournal.append("Change Generated: $" + (Math.ceil(register.getNextDollar()) - register.getTotal()));
+    }
+
+    private void payForTicket() {
+        register.updateTotal(register.getSubtotal());
+        updateVirtualJournal();
+
+        formatter.format("%.2f", register.getTotal());
+        virtualJournal.append("Amount paid: $" + formatter);
+        System.out.printf("Amount paid: $" + formatter);
+    }
+
+    private void quickKey1Select() {
+        String barcode = "611269716467";
+        scanner.scan(barcode);
+        updateVirtualJournal();
+        barcodeInput.setText("");
+    }
+    private void quickKey2Select() {
+        String barcode = "052000135138";
+        scanner.scan(barcode);
+        updateVirtualJournal();
+        barcodeInput.setText("");
+    }
+
+    private void quickKey3Select() {
+        String barcode = "049000000443";
+        scanner.scan(barcode);
+        updateVirtualJournal();
+        barcodeInput.setText("");
     }
 
 }
