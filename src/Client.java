@@ -1,75 +1,52 @@
 import java.io.*;
 import java.net.*;
-import java.util.Timer;
-import java.util.TimerTask;
 
 public class Client {
-    private Socket clientSocket;
-    private PrintWriter out;
+    private Socket socket;
     private BufferedReader in;
-    private Timer timer;
+    private PrintWriter out;
 
-    public void startConnection(String ip, int port) throws IOException {
-        clientSocket = new Socket(ip, port);
-        out = new PrintWriter(clientSocket.getOutputStream(), true);
-        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+    public void connect(String serverAddress, int serverPort) throws IOException {
+        socket = new Socket(serverAddress, serverPort);
+        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        out = new PrintWriter(socket.getOutputStream(), true);
+
+        out.println("Hello World!");
+
+        //New Thread to listen
+        //new Thread(this::listenForServerMessages).start();
+        listenForServerMessages();
     }
 
-    public void sendMessage(String msg) throws IOException {
-        out.println(msg);
-        //String resp = in.readLine();
-        //System.out.println("Server response: " + resp);
-    }
-
-    public void startPeriodicUpdates(GUI GUI) {
-        timer = new Timer();
-        TimerTask task = new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    //String journalEntries = transactionModel.getVirtualJournalEntries();
-                    String journalEntries = GUI.getLatest();
-                    sendMessage(journalEntries);
-                } catch (IOException e) {
-                    System.out.println("Error sending periodic update: " + e.getMessage());
-                    this.cancel();
-                }
+    private void listenForServerMessages() {
+        try {
+            String message;
+            while ((message = in.readLine()) != null) {
+                System.out.println("Message from server: " + message);
             }
-        };
-        timer.scheduleAtFixedRate(task, 0, 2000);
-    }
-
-    public void run(GUI GUI) throws IOException {
-        //while (true) {
-            String journalEntries = GUI.getLatest();
-            sendMessage(journalEntries);
-        //}
-    }
-
-
-    /**
-    public void stopConnection() throws IOException {
-        if (timer != null) {
-            timer.cancel();
+        } catch (IOException e) {
+            System.out.println("Error reading from server: " + e.getMessage());
         }
-        in.close();
-        out.close();
-        clientSocket.close();
-    }*/
+    }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         Client client = new Client();
-        GUI GUI = new GUI();
+        try {
+            //ME
+            client.connect("192.168.168.7", 1234);
 
-        //Me
-        client.startConnection("192.168.168.7", 1234);
+            //Mason
+            //client.connect("192.168.168.8", 4206);
 
-        //Michael
-        //client.startConnection("192.168.168.24", 5000);
+            //Michael
+            //client.connect("192.168.168.24", 5000);
 
+            //Dean
+            //client.connect("192.168.168.141", 7777);
 
-        //client.startPeriodicUpdates(transactionModel);
-        client.run(GUI);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
 

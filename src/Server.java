@@ -1,8 +1,11 @@
 import java.io.*;
 import java.net.*;
+import java.util.*;
+import java.util.concurrent.*;
 
 public class Server {
     private ServerSocket serverSocket;
+    private final List<PrintWriter> clientWriters = new CopyOnWriteArrayList<>();
 
     public Server(int port) throws IOException {
         serverSocket = new ServerSocket(port);
@@ -10,30 +13,58 @@ public class Server {
     }
 
     public void start() {
-        try {
-            System.out.println("Waiting for clients...");
-            Socket clientSocket = serverSocket.accept();
+        ExecutorService pool = Executors.newCachedThreadPool();
+        System.out.println("Waiting for clients...");
+
+        while (true) {
+            try {
+                Socket clientSocket = serverSocket.accept();
+                PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
+                clientWriters.add(writer);
+
+                pool.execute(() -> handleClient(clientSocket, writer));
+            } catch (IOException e) {
+                System.out.println("Server exception: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void handleClient(Socket clientSocket, PrintWriter writer) {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
             System.out.println("Client connected.");
-
-            BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-
-            //PrintWriter outputWriter = new PrintWriter(clientSocket.getOutputStream(), true);
-            //outputWriter.println("Hello from the server!");
-
             String inputLine;
             while ((inputLine = in.readLine()) != null) {
                 System.out.println("Received from client: " + inputLine);
+
+                //Echoing received message back to all clients
+                /**
+                for (PrintWriter clientWriter : clientWriters) {
+                    clientWriter.println("Echo: " + inputLine);
+                }
+                 */
             }
         } catch (IOException e) {
-            System.out.println("Exception caught when trying to listen on port or listening for a connection");
-            System.out.println(e.getMessage());
+            System.out.println("Client connection error: " + e.getMessage());
+        } finally {
+            clientWriters.remove(writer);
+            try {
+                clientSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            System.out.println("Client disconnected.");
         }
+    }
 
+    public void broadcastUpdate(String update) {
+        for (PrintWriter writer : clientWriters) {
+            writer.println(update);
+        }
     }
 
     public static void main(String[] args) throws IOException {
-        Server server = new Server(1234); // Port number 1234
-
+        Server server = new Server(1234);
         server.start();
     }
 }

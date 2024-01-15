@@ -1,3 +1,4 @@
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -6,6 +7,7 @@ public class Register {
     private double subtotal;
     private double total;
     private double taxAmount;
+    //private BigDecimal bg;
     private int quantity;
     private int transaction;
     private final PriceBook priceBook;
@@ -33,6 +35,7 @@ public class Register {
 
     private void updateSubtotal() {
         subtotal = 0.0;
+        //bg = BigDecimal.valueOf(subtotal);
         for (String[] item : scannedItems) {
             subtotal += Double.parseDouble(item[2]);
         }
@@ -73,7 +76,6 @@ public class Register {
         taxAmount = 0.0;
         quantity = 0;
         transaction++;
-        // Add any additional reset logic needed
     }
 
     public String nextDollar() {
@@ -88,16 +90,18 @@ public class Register {
         }
     }
 
-    // Getters for subtotal, total, tax amount, and scanned items
     public double getSubtotal() {
+        subtotal = (double) Math.round(subtotal * 100) / 100;
         return subtotal;
     }
 
     public double getTotal() {
+        total = (double) Math.round(total * 100) / 100;
         return total;
     }
 
     public double getTaxAmount() {
+        taxAmount = (double) Math.round(taxAmount * 100) / 100;
         return taxAmount;
     }
 
@@ -109,8 +113,5 @@ public class Register {
         return transaction;
     }
 
-    public List<String[]> getScannedItems() {
-        return new ArrayList<>(scannedItems);
-    }
 
 }
